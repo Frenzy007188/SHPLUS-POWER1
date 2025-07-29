@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHPLUS POWER - Investment Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #fbbf24 100%);
+            animation: gradientShift 6s ease-in-out infinite;
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .notification {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .task-card:hover {
+            transform: translateY(-5px);
+            transition: transform 0.3s ease;
+        }
+        
+        .hidden { display: none !important; }
+        .active-nav { background-color: #3b82f6; color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- Navigation Sidebar (Desktop) -->
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-blue-900 text-white transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-50">
+        <div class="p-6">
+            <h2 class="text-2xl font-bold text-yellow-400">SHPLUS POWER</h2>
+            <p class="text-sm text-blue-200">Investment Platform</p>
+        </div>
+        <nav class="mt-8">
+            <a href="#" onclick="showSection('welcome')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-home mr-3"></i>Home
+            </a>
+            <a href="#" onclick="showSection('dashboard')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-tachometer-alt mr-3"></i>Dashboard
+            </a>
+            <a href="#" onclick="showSection('deposit')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-plus-circle mr-3"></i>Deposit
+            </a>
+            <a href="#" onclick="showSection('tasks')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-shopping-cart mr-3"></i>Buy Tasks
+            </a>
+            <a href="#" onclick="showSection('active-tasks')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-tasks mr-3"></i>Active Tasks
+            </a>
+            <a href="#" onclick="showSection('withdraw')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-money-bill-wave mr-3"></i>Withdraw
+            </a>
+            <a href="#" onclick="showSection('referrals')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-users mr-3"></i>Referrals
+            </a>
+            <a href="#" onclick="showSection('notifications')" class="nav-item block px-6 py-3 hover:bg-blue-800 transition-colors">
+                <i class="fas fa-bell mr-3"></i>Notifications
+            </a>
+            <a href="#" onclick="logout()" class="nav-item block px-6 py-3 hover:bg-red-600 transition-colors">
+                <i class="fas fa-sign-out-alt mr-3"></i>Logout
+            </a>
+        </nav>
+        <div class="absolute bottom-4 left-6 right-6">
+            <button onclick="showAdminLogin()" class="text-xs text-blue-300 hover:text-white">Admin Access</button>
+        </div>
+    </div>
+
+    <!-- Mobile Menu Button -->
+    <button id="mobile-menu-btn" class="lg:hidden fixed top-4 left-4 z-50 bg-blue-900 text-white p-3 rounded-lg">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64 min-h-screen">
+        <!-- Welcome Section -->
+        <section id="welcome-section" class="section">
+            <div class="gradient-bg min-h-screen flex items-center justify-center">
+                <div class="text-center text-white px-6">
+                    <h1 class="text-5xl md:text-7xl font-bold mb-6 fade-in">SHPLUS POWER</h1>
+                    <p class="text-xl md:text-2xl mb-8 fade-in">Grow Your Wealth with Smart Investments</p>
+                    <div class="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8 fade-in">
+                        <h3 class="text-2xl font-bold text-yellow-400 mb-4">Welcome Bonus: ₦600</h3>
+                        <p class="text-lg">Investment Range: ₦2,500 - ₦500,000</p>
+                        <p class="text-sm mt-2">Join 5,000+ investors earning daily!</p>
+                    </div>
+                    <div class="space-y-4 md:space-y-0 md:space-x-4 md:flex md:justify-center fade-in">
+                        <button onclick="showSection('signup')" class="bg-yellow-500 hover:bg-yellow-600 text-blue-900 font-bold py-3 px-8 rounded-lg transition-colors w-full md:w-auto">
+                            Sign Up Now
+                        </button>
+                        <button onclick="showSection('login')" class="bg-transparent border-2 border-white hover:bg-white hover:text-blue-900 text-white font-bold py-3 px-8 rounded-lg transition-colors w-full md:w-auto">
+                            Log In
+                        </button>
+                    </div>
+                    <div class="mt-8 space-y-2 md:space-y-0 md:space-x-4 md:flex md:justify-center fade-in">
+                        <button id="whatsapp-btn" onclick="openWhatsApp()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full md:w-auto">
+                            <i class="fab fa-whatsapp mr-2"></i>Join WhatsApp Group
+                        </button>
+                        <button id="telegram-btn" onclick="openTelegram()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full md:w-auto">
+                            <i class="fab fa-telegram mr-2"></i>Join Telegram Channel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sign Up Section -->
+        <section id="signup-section" class="section hidden">
+            <div class="min-h-screen bg-gradient-to-br from-blue-50 to-yellow-50 py-12 px-6">
+                <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-blue-900 mb-6 text-center">Create Account</h2>
+                    <form id="signup-form" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                            <input type="text" id="signup-name" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Email</label>
+                            <input type="email" id="signup-email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Phone Number</label>
+                            <input type="tel" id="signup-phone" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Password</label>
+                            <input type="password" id="signup-password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Referral Code (Optional)</label>
+                            <input type="text" id="signup-referral" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Create Account & Get ₦600 Bonus
+                        </button>
+                    </form>
+                    <p class="text-center mt-4 text-gray-600">
+                        Already have an account? 
+                        <button onclick="showSection('login')" class="text-blue-600 hover:underline">Log In</button>
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Login Section -->
+        <section id="login-section" class="section hidden">
+            <div class="min-h-screen bg-gradient-to-br from-blue-50 to-yellow-50 py-12 px-6">
+                <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-blue-900 mb-6 text-center">Welcome Back</h2>
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Email</label>
+                            <input type="email" id="login-email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Password</label>
+                            <input type="password" id="login-password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Log In
+                        </button>
+                    </form>
+                    <div class="text-center mt-4">
+                        <button onclick="showForgotPassword()" class="text-blue-600 hover:underline">Forgot Password?</button>
+                    </div>
+                    <p class="text-center mt-4 text-gray-600">
+                        Don't have an account? 
+                        <button onclick="showSection('signup')" class="text-blue-600 hover:underline">Sign Up</button>
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard-section" class="section hidden">
+            <div class="p-6">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-blue-900 mb-2">Dashboard</h1>
+                    <p class="text-gray-600">Welcome back, <span id="user-name-display"></span></p>
+                </div>
+                
+                <!-- Account Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm">Account Balance</p>
+                                <p class="text-2xl font-bold text-green-600">₦<span id="balance-display">0</span></p>
+                            </div>
+                            <i class="fas fa-wallet text-3xl text-green-500"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm">Active Tasks</p>
+                                <p class="text-2xl font-bold text-blue-600"><span id="active-tasks-count">0</span></p>
+                            </div>
+                            <i class="fas fa-tasks text-3xl text-blue-500"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm">Total Earnings</p>
+                                <p class="text-2xl font-bold text-yellow-600">₦<span id="total-earnings-display">0</span></p>
+                            </div>
+                            <i class="fas fa-chart-line text-3xl text-yellow-500"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm">Account Number</p>
+                                <p class="text-lg font-bold text-gray-800"><span id="account-number-display"></span></p>
+                            </div>
+                            <i class="fas fa-id-card text-3xl text-gray-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <button onclick="showSection('deposit')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg transition-colors">
+                        <i class="fas fa-plus-circle text-2xl mb-2"></i>
+                        <p>Deposit</p>
+                    </button>
+                    <button onclick="showSection('tasks')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg transition-colors">
+                        <i class="fas fa-shopping-cart text-2xl mb-2"></i>
+                        <p>Buy Task</p>
+                    </button>
+                    <button onclick="showSection('withdraw')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-6 rounded-lg transition-colors">
+                        <i class="fas fa-money-bill-wave text-2xl mb-2"></i>
+                        <p>Withdraw</p>
+                    </button>
+                    <button onclick="showSection('referrals')" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 px-6 rounded-lg transition-colors">
+                        <i class="fas fa-users text-2xl mb-2"></i>
+                        <p>Referrals</p>
+                    </button>
+                </div>
+
+                <!-- Recent Notifications -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Recent Activity</h3>
+                    <div id="recent-notifications" class="space-y-3">
+                        <!-- Notifications will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Deposit Section -->
+        <section id="deposit-section" class="section hidden">
+            <div class="p-6">
+                <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-blue-900 mb-6 text-center">Make Deposit</h2>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <p class="text-blue-800 text-sm">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Minimum deposit: ₦2,500. Deposits require admin approval.
+                        </p>
+                    </div>
+                    <form id="deposit-form" class="space-y-4">
+    <div>
+        <label class="block text-gray-700 font-medium mb-2">Amount (₦)</label>
+        <input type="number" id="deposit-amount" min="2500" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+    </div>
+    <div>
+        <label class="block text-gray-700 font-medium mb-2">Payment Method</label>
+        <select id="deposit-method" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option value="">Select Payment Method</option>
+            <option value="bank-transfer">Bank Transfer</option>
+            <option value="card">Debit/Credit Card</option>
+        </select>
+    </div>
+    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+        Proceed to Payment
+    </button>
+</form>
+
+<!-- Bank Account Details Modal -->
+<div id="bank-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4 text-center">Payment Details</h3>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h4 class="font-bold text-blue-900 mb-2">Transfer to:</h4>
+            <p class="text-gray-800"><strong>Bank:</strong> Opay</p>
+            <p class="text-gray-800"><strong>Account Number:</strong> 9169386315</p>
+            <p class="text-gray-800"><strong>Account Name:</strong> Bello Waliyat Shade</p>
+            <p class="text-gray-800 mt-2"><strong>Amount:</strong> ₦<span id="deposit-amount-display">0</span></p>
+        </div>
+        <div class="space-y-3">
+            <button onclick="confirmPayment()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                I Have Made This Payment
+            </button>
+            <button onclick="cancelPayment()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+                
+            </div>
+        </section>
+
+        <!-- Task Marketplace Section -->
+        <section id="tasks-section" class="section hidden">
+            <div class="p-6">
+                <h2 class="text-3xl font-bold text-blue-900 mb-8 text-center">Investment Tasks</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Basic Plan -->
+                    <div class="task-card bg-white rounded-lg shadow-lg p-6 border-2 border-gray-200 hover:border-blue-500 transition-all">
+                        <div class="text-center">
+                            <h3 class="text-xl font-bold text-blue-900 mb-2">Basic Plan</h3>
+                            <div class="text-3xl font-bold text-green-600 mb-4">₦2,500</div>
+                            <div class="space-y-2 mb-6">
+                                <p class="text-gray-600">Daily Profit: <span class="font-bold text-green-600">₦150</span></p>
+                                <p class="text-gray-600">Duration: <span class="font-bold">30 days</span></p>
+                                <p class="text-gray-600">Total Return: <span class="font-bold text-green-600">₦4,500</span></p>
+                            </div>
+                            <button onclick="buyTask('Basic Plan', 2500, 150, 30)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                                Buy Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Standard Plan -->
+                    <div class="task-card bg-white rounded-lg shadow-lg p-6 border-2 border-gray-200 hover:border-blue-500 transition-all">
+                        <div class="text-center">
+                            <h3 class="text-xl font-bold text-blue-900 mb-2">Standard Plan</h3>
+                            <div class="text-3xl font-bold text-green-600 mb-4">₦10,000</div>
+                            <div class="space-y-2 mb-6">
+                                <p class="text-gray-600">Daily Profit: <span class="font-bold text-green-600">₦600</span></p>
+                                <p class="text-gray-600">Duration: <span class="font-bold">60 days</span></p>
+                                <p class="text-gray-600">Total Return: <span class="font-bold text-green-600">₦36,000</span></p>
+                            </div>
+                            <button onclick="buyTask('Standard Plan', 10000, 600, 60)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                                Buy Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Premium Plan -->
+                    <div class="task-card bg-white rounded-lg shadow-lg p-6 border-2 border-yellow-400 hover:border-yellow-500 transition-all">
+                        <div class="text-center">
+                            <div class="bg-yellow-400 text-blue-900 font-bold text-xs px-2 py-1 rounded-full inline-block mb-2">POPULAR</div>
+                            <h3 class="text-xl font-bold text-blue-900 mb-2">Premium Plan</h3>
+                            <div class="text-3xl font-bold text-green-600 mb-4">₦50,000</div>
+                            <div class="space-y-2 mb-6">
+                                <p class="text-gray-600">Daily Profit: <span class="font-bold text-green-600">₦3,000</span></p>
+                                <p class="text-gray-600">Duration: <span class="font-bold">90 days</span></p>
+                                <p class="text-gray-600">Total Return: <span class="font-bold text-green-600">₦270,000</span></p>
+                            </div>
+                            <button onclick="buyTask('Premium Plan', 50000, 3000, 90)" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                                Buy Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Elite Plan -->
+                    <div class="task-card bg-white rounded-lg shadow-lg p-6 border-2 border-purple-400 hover:border-purple-500 transition-all">
+                        <div class="text-center">
+                            <div class="bg-purple-400 text-white font-bold text-xs px-2 py-1 rounded-full inline-block mb-2">VIP</div>
+                            <h3 class="text-xl font-bold text-blue-900 mb-2">Elite Plan</h3>
+                            <div class="text-3xl font-bold text-green-600 mb-4">₦100,000</div>
+                            <div class="space-y-2 mb-6">
+                                <p class="text-gray-600">Daily Profit: <span class="font-bold text-green-600">₦6,500</span></p>
+                                <p class="text-gray-600">Duration: <span class="font-bold">120 days</span></p>
+                                <p class="text-gray-600">Total Return: <span class="font-bold text-green-600">₦780,000</span></p>
+                            </div>
+                            <button onclick="buyTask('Elite Plan', 100000, 6500, 120)" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                                Buy Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Active Tasks Section -->
+        <section id="active-tasks-section" class="section hidden">
+            <div class="p-6">
+                <h2 class="text-3xl font-bold text-blue-900 mb-8 text-center">Active Tasks</h2>
+                <div id="active-tasks-list" class="space-y-6">
+                    <!-- Active tasks will be populated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Withdrawal Section -->
+        <section id="withdraw-section" class="section hidden">
+            <div class="p-6">
+                <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-blue-900 mb-6 text-center">Withdraw Funds</h2>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                        <p class="text-yellow-800 text-sm">
+                            <i class="fas fa-clock mr-2"></i>
+                            Withdrawals available: 10:00 AM - 7:00 PM daily<br>
+                            Minimum: ₦600 | Fee: 5%
+                        </p>
+                    </div>
+                    <form id="withdraw-form" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Amount (₦)</label>
+                            <input type="number" id="withdraw-amount" min="600" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <p class="text-sm text-gray-600 mt-1">Available: ₦<span id="available-balance">0</span></p>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Bank Account Number</label>
+                            <input type="text" id="withdraw-account" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Bank Name</label>
+                            <input type="text" id="withdraw-bank" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div id="withdrawal-fee-info" class="bg-gray-50 border border-gray-200 rounded-lg p-3 hidden">
+                            <p class="text-sm text-gray-700">
+                                Withdrawal Fee (5%): ₦<span id="fee-amount">0</span><br>
+                                You will receive: ₦<span id="net-amount">0</span>
+                            </p>
+                        </div>
+                        <button type="submit" id="withdraw-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Submit Withdrawal
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Referrals Section -->
+        <section id="referrals-section" class="section hidden">
+            <div class="p-6">
+                <h2 class="text-3xl font-bold text-blue-900 mb-8 text-center">Referral System</h2>
+                
+                <!-- Referral Code -->
+                <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">Your Referral Code</h3>
+                    <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4 text-center">
+                        <p class="text-2xl font-bold text-blue-900" id="referral-code-display"></p>
+                        <button onclick="copyReferralCode()" class="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                            <i class="fas fa-copy mr-2"></i>Copy Code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Referral Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-users text-3xl text-blue-500 mb-3"></i>
+                        <p class="text-gray-600">Total Referrals</p>
+                        <p class="text-2xl font-bold text-blue-900" id="total-referrals">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-money-bill-wave text-3xl text-green-500 mb-3"></i>
+                        <p class="text-gray-600">Referral Earnings</p>
+                        <p class="text-2xl font-bold text-green-600">₦<span id="referral-earnings">0</span></p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-percentage text-3xl text-yellow-500 mb-3"></i>
+                        <p class="text-gray-600">Commission Rate</p>
+                        <p class="text-lg font-bold text-yellow-600">20% / 10%</p>
+                    </div>
+                </div>
+
+                <!-- Referral List -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Your Referrals</h3>
+                    <div id="referrals-list" class="space-y-3">
+                        <!-- Referrals will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Notifications Section -->
+        <section id="notifications-section" class="section hidden">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-blue-900">Notifications</h2>
+                    <button onclick="clearNotifications()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Clear All
+                    </button>
+                </div>
+                <div id="notifications-list" class="space-y-4">
+                    <!-- Notifications will be populated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Section -->
+        <section id="admin-section" class="section hidden">
+            <div class="p-6">
+                <h2 class="text-3xl font-bold text-red-600 mb-8 text-center">Admin Panel</h2>
+                
+                <!-- Admin Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-users text-3xl text-blue-500 mb-3"></i>
+                        <p class="text-gray-600">Total Users</p>
+                        <p class="text-2xl font-bold text-blue-900" id="admin-total-users">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-clock text-3xl text-yellow-500 mb-3"></i>
+                        <p class="text-gray-600">Pending Deposits</p>
+                        <p class="text-2xl font-bold text-yellow-600" id="admin-pending-deposits">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-check-circle text-3xl text-green-500 mb-3"></i>
+                        <p class="text-gray-600">Approved Deposits</p>
+                        <p class="text-2xl font-bold text-green-600" id="admin-approved-deposits">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                        <i class="fas fa-money-bill-wave text-3xl text-purple-500 mb-3"></i>
+                        <p class="text-gray-600">Total Withdrawals</p>
+                        <p class="text-2xl font-bold text-purple-600" id="admin-total-withdrawals">0</p>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Global Activity Log</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full table-auto">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="px-4 py-2 text-left">User</th>
+                                    <th class="px-4 py-2 text-left">Action</th>
+                                    <th class="px-4 py-2 text-left">Amount</th>
+                                    <th class="px-4 py-2 text-left">Date</th>
+                                    <th class="px-4 py-2 text-left">Status</th>
+                                    <th class="px-4 py-2 text-left">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-activity-log">
+                                <!-- Activity log will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification-toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg notification hidden z-50">
+        <p id="toast-message"></p>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="modal-message" class="text-gray-600 mb-6"></p>
+            <div class="flex space-x-4">
+                <button id="modal-confirm" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                    Confirm
+                </button>
+                <button onclick="closeModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Admin Access</h3>
+            <form id="admin-login-form">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Admin Password</label>
+                    <input type="password" id="admin-password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                </div>
+                <div class="flex space-x-4">
+                    <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                        Access Admin
+                    </button>
+                    <button type="button" onclick="closeAdminLogin()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+<script>
+// Check for admin URL access
+function checkAdminAccess() {
+    const url = window.location.href;
+    const hash = window.location.hash;
+    
+    if (url.includes('/admin') || hash === '#admin') {
+        showAdminLogin();
+    }
+}
+
+// Listen for hash changes
+window.addEventListener('hashchange', checkAdminAccess);
+window.addEventListener('load', checkAdminAccess);
+</script>
+</body>
+</html>
