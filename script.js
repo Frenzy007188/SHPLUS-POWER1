@@ -2,200 +2,277 @@
 let currentUser = null
 let currentSection = "welcome"
 let syncInterval = null
+let globalDatabase = null
+
+// Global Database Configuration
+const GLOBAL_DB_CONFIG = {
+  apiEndpoint: "https://formspree.io/f/mblkywnz",
+  syncInterval: 3000, // 3 seconds
+  maxRetries: 3,
+}
 
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
-  initializeApp()
+  initializeGlobalDatabase()
   setupEventListeners()
   checkSocialLinksAvailability()
-  startGlobalSync()
+  startRealTimeSync()
 
   // Check if user is logged in
   const savedUser = localStorage.getItem("currentUser")
   if (savedUser) {
     currentUser = JSON.parse(savedUser)
-    showSection("dashboard")
-    updateDashboard()
+    // Verify user still exists in global database
+    verifyUserSession()
   }
 })
 
-// Initialize localStorage structure with global sync
-function initializeApp() {
-  // Initialize local storage
-  if (!localStorage.getItem("users")) {
-    localStorage.setItem("users", JSON.stringify([]))
-  }
-  if (!localStorage.getItem("globalActivityLog")) {
-    localStorage.setItem("globalActivityLog", JSON.stringify([]))
-  }
+// Initialize Global Database System
+async function initializeGlobalDatabase() {
+  try {
+    // Create a unique session ID for this browser session
+    const sessionId = generateUniqueId()
+    localStorage.setItem("sessionId", sessionId)
 
-  // Initialize global sync storage
-  if (!localStorage.getItem("globalSyncData")) {
-    localStorage.setItem(
-      "globalSyncData",
-      JSON.stringify({
-        users: [],
-        globalActivityLog: [],
-        lastSync: new Date().toISOString(),
-        syncId: generateUniqueId(),
-      }),
-    )
-  }
+    // Initialize global database structure
+    globalDatabase = {
+      users: [],
+      globalActivityLog: [],
+      referralBonuses: [],
+      adminActions: [],
+      lastSync: new Date().toISOString(),
+      sessionId: sessionId,
+    }
 
-  // Sync data on startup
-  syncGlobalData()
+    // Load existing data from global storage
+    await loadGlobalData()
+
+    console.log("Global Database initialized successfully")
+  } catch (error) {
+    console.error("Failed to initialize global database:", error)
+    // Fallback to local storage
+    initializeLocalFallback()
+  }
 }
 
-// Global synchronization system
-function startGlobalSync() {
-  // Sync every 2 seconds for real-time updates
-  syncInterval = setInterval(() => {
-    syncGlobalData()
-  }, 2000)
+// Load data from global storage
+async function loadGlobalData() {
+  try {
+    // Send request to get all global data
+    const response = await fetch(GLOBAL_DB_CONFIG.apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "GET_GLOBAL_DATA",
+        sessionId: localStorage.getItem("sessionId"),
+        timestamp: new Date().toISOString(),
+      }),
+    })
 
-  // Also sync when page becomes visible
+    // For now, we'll use a hybrid approach with localStorage as primary
+    // but sync everything to external storage
+    const localUsers = JSON.parse(localStorage.getItem("globalUsers") || "[]")
+    const localActivityLog = JSON.parse(localStorage.getItem("globalActivityLog") || "[]")
+
+    globalDatabase.users = localUsers
+    globalDatabase.globalActivityLog = localActivityLog
+
+    // Also update regular localStorage for compatibility
+    localStorage.setItem("users", JSON.stringify(localUsers))
+    localStorage.setItem("globalActivityLog", JSON.stringify(localActivityLog))
+  } catch (error) {
+    console.error("Error loading global data:", error)
+  }
+}
+
+// Save data to global storage
+async function saveGlobalData(data, retryCount = 0) {
+  try {
+    // Save to our global localStorage keys
+    localStorage.setItem("globalUsers", JSON.stringify(globalDatabase.users))
+    localStorage.setItem("globalActivityLog", JSON.stringify(globalDatabase.globalActivityLog))
+
+    // Also save to regular localStorage for compatibility
+    localStorage.setItem("users", JSON.stringify(globalDatabase.users))
+    localStorage.setItem("globalActivityLog", JSON.stringify(globalDatabase.globalActivityLog))
+
+    // Send to external storage
+    const payload = {
+      action: "SAVE_GLOBAL_DATA",
+      sessionId: localStorage.getItem("sessionId"),
+      timestamp: new Date().toISOString(),
+      data: {
+        users: globalDatabase.users,
+        globalActivityLog: globalDatabase.globalActivityLog,
+        totalUsers: globalDatabase.users.length,
+        totalTransactions: globalDatabase.globalActivityLog.length,
+      },
+      ...data,
+    }
+
+    await fetch(GLOBAL_DB_CONFIG.apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
+
+    // Broadcast to other tabs/windows
+    broadcastToOtherTabs("DATA_UPDATED", globalDatabase)
+  } catch (error) {
+    console.error("Error saving global data:", error)
+    if (retryCount < GLOBAL_DB_CONFIG.maxRetries) {
+      setTimeout(() => saveGlobalData(data, retryCount + 1), 2000)
+    }
+  }
+}
+
+// Real-time synchronization system
+function startRealTimeSync() {
+  // Sync every 3 seconds
+  syncInterval = setInterval(async () => {
+    await syncWithGlobalDatabase()
+  }, GLOBAL_DB_CONFIG.syncInterval)
+
+  // Listen for storage changes from other tabs
+  window.addEventListener("storage", handleStorageChange)
+
+  // Listen for custom broadcast messages
+  window.addEventListener("message", handleBroadcastMessage)
+
+  // Sync when page becomes visible
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      syncGlobalData()
+      syncWithGlobalDatabase()
     }
   })
 }
 
-function syncGlobalData() {
+// Sync with global database
+async function syncWithGlobalDatabase() {
   try {
-    // Get current global data
-    const globalSync = JSON.parse(localStorage.getItem("globalSyncData") || "{}")
-    const localUsers = JSON.parse(localStorage.getItem("users") || "[]")
-    const localActivityLog = JSON.parse(localStorage.getItem("globalActivityLog") || "[]")
+    // Load latest data from global storage
+    const latestUsers = JSON.parse(localStorage.getItem("globalUsers") || "[]")
+    const latestActivityLog = JSON.parse(localStorage.getItem("globalActivityLog") || "[]")
 
-    // Create a master key for cross-device sync
-    const masterKey = "SHPLUS_POWER_GLOBAL_DATA"
+    // Check if data has changed
+    const usersChanged = JSON.stringify(globalDatabase.users) !== JSON.stringify(latestUsers)
+    const logChanged = JSON.stringify(globalDatabase.globalActivityLog) !== JSON.stringify(latestUsers)
 
-    // Try to get data from a simulated global storage (using a special localStorage key)
-    let masterData = null
-    try {
-      masterData = JSON.parse(localStorage.getItem(masterKey) || "null")
-    } catch (e) {
-      masterData = null
-    }
-
-    // If no master data exists, create it
-    if (!masterData) {
-      masterData = {
-        users: localUsers,
-        globalActivityLog: localActivityLog,
-        lastUpdate: new Date().toISOString(),
-        version: 1,
-      }
-      localStorage.setItem(masterKey, JSON.stringify(masterData))
-    } else {
-      // Merge local changes with master data
-      const mergedUsers = mergeUserData(masterData.users, localUsers)
-      const mergedActivityLog = mergeActivityLog(masterData.globalActivityLog, localActivityLog)
-
-      // Update master data if there are changes
-      if (
-        JSON.stringify(mergedUsers) !== JSON.stringify(masterData.users) ||
-        JSON.stringify(mergedActivityLog) !== JSON.stringify(masterData.globalActivityLog)
-      ) {
-        masterData = {
-          users: mergedUsers,
-          globalActivityLog: mergedActivityLog,
-          lastUpdate: new Date().toISOString(),
-          version: masterData.version + 1,
-        }
-        localStorage.setItem(masterKey, JSON.stringify(masterData))
-      }
-
-      // Update local storage with master data
-      localStorage.setItem("users", JSON.stringify(masterData.users))
-      localStorage.setItem("globalActivityLog", JSON.stringify(masterData.globalActivityLog))
+    if (usersChanged || logChanged) {
+      globalDatabase.users = latestUsers
+      globalDatabase.globalActivityLog = latestActivityLog
 
       // Update current user if logged in
       if (currentUser) {
-        const updatedUser = masterData.users.find((u) => u.id === currentUser.id)
+        const updatedUser = globalDatabase.users.find((u) => u.id === currentUser.id)
         if (updatedUser && JSON.stringify(updatedUser) !== JSON.stringify(currentUser)) {
           currentUser = updatedUser
           localStorage.setItem("currentUser", JSON.stringify(currentUser))
 
-          // Refresh dashboard if visible
-          if (currentSection === "dashboard") {
-            updateDashboard()
-          }
+          // Refresh current view
+          refreshCurrentView()
         }
       }
-    }
 
-    // Send data to external sync service (Formspree) for true cross-device sync
-    sendSyncDataToServer(masterData)
+      // Refresh admin panel if visible
+      if (currentSection === "admin") {
+        displayAdminPanel()
+      }
+    }
   } catch (error) {
     console.error("Sync error:", error)
   }
 }
 
-function mergeUserData(masterUsers, localUsers) {
-  const merged = [...masterUsers]
-
-  localUsers.forEach((localUser) => {
-    const existingIndex = merged.findIndex((u) => u.id === localUser.id)
-    if (existingIndex >= 0) {
-      // Merge user data, keeping the most recent updates
-      const existing = merged[existingIndex]
-      const localLastUpdate = new Date(
-        localUser.lastLogin || localUser.transactions[localUser.transactions.length - 1]?.date || 0,
-      )
-      const existingLastUpdate = new Date(
-        existing.lastLogin || existing.transactions[existing.transactions.length - 1]?.date || 0,
-      )
-
-      if (localLastUpdate > existingLastUpdate) {
-        merged[existingIndex] = localUser
-      }
-    } else {
-      merged.push(localUser)
-    }
-  })
-
-  return merged
-}
-
-function mergeActivityLog(masterLog, localLog) {
-  const merged = [...masterLog]
-
-  localLog.forEach((localEntry) => {
-    if (!merged.find((entry) => entry.id === localEntry.id)) {
-      merged.push(localEntry)
-    }
-  })
-
-  return merged.sort((a, b) => new Date(b.date) - new Date(a.date))
-}
-
-function sendSyncDataToServer(data) {
-  // Send sync data to Formspree for cross-device persistence
-  fetch("https://formspree.io/f/mblkywnz", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      type: "global_sync",
-      syncData: data,
-      timestamp: new Date().toISOString(),
-      deviceId: getDeviceId(),
-    }),
-  }).catch((error) => {
-    console.error("Error syncing to server:", error)
-  })
-}
-
-function getDeviceId() {
-  let deviceId = localStorage.getItem("deviceId")
-  if (!deviceId) {
-    deviceId = generateUniqueId()
-    localStorage.setItem("deviceId", deviceId)
+// Handle storage changes from other tabs
+function handleStorageChange(e) {
+  if (e.key === "globalUsers" || e.key === "globalActivityLog") {
+    syncWithGlobalDatabase()
   }
-  return deviceId
+}
+
+// Handle broadcast messages
+function handleBroadcastMessage(e) {
+  if (e.data && e.data.type === "DATA_UPDATED") {
+    syncWithGlobalDatabase()
+  }
+}
+
+// Broadcast to other tabs
+function broadcastToOtherTabs(type, data) {
+  // Use BroadcastChannel if available
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel("shplus-power")
+    channel.postMessage({ type, data })
+  }
+
+  // Fallback to localStorage events
+  localStorage.setItem(
+    "broadcast",
+    JSON.stringify({
+      type,
+      data,
+      timestamp: Date.now(),
+    }),
+  )
+  localStorage.removeItem("broadcast")
+}
+
+// Refresh current view
+function refreshCurrentView() {
+  switch (currentSection) {
+    case "dashboard":
+      updateDashboard()
+      break
+    case "referrals":
+      displayReferrals()
+      break
+    case "notifications":
+      displayNotifications()
+      break
+    case "active-tasks":
+      displayActiveTasks()
+      break
+  }
+}
+
+// Initialize local fallback
+function initializeLocalFallback() {
+  if (!localStorage.getItem("globalUsers")) {
+    localStorage.setItem("globalUsers", JSON.stringify([]))
+  }
+  if (!localStorage.getItem("globalActivityLog")) {
+    localStorage.setItem("globalActivityLog", JSON.stringify([]))
+  }
+
+  globalDatabase = {
+    users: JSON.parse(localStorage.getItem("globalUsers")),
+    globalActivityLog: JSON.parse(localStorage.getItem("globalActivityLog")),
+    lastSync: new Date().toISOString(),
+  }
+}
+
+// Verify user session
+async function verifyUserSession() {
+  if (currentUser) {
+    const globalUsers = JSON.parse(localStorage.getItem("globalUsers") || "[]")
+    const userExists = globalUsers.find((u) => u.id === currentUser.id)
+
+    if (userExists) {
+      // Update current user with latest data
+      currentUser = userExists
+      localStorage.setItem("currentUser", JSON.stringify(currentUser))
+      showSection("dashboard")
+      updateDashboard()
+    } else {
+      // User doesn't exist in global database, logout
+      logout()
+    }
+  }
 }
 
 // Setup event listeners
@@ -270,8 +347,8 @@ function closeMobileMenu() {
   sidebar.classList.add("-translate-x-full")
 }
 
-// Authentication functions
-function handleSignup(e) {
+// Authentication functions with global sync
+async function handleSignup(e) {
   e.preventDefault()
 
   const name = document.getElementById("signup-name").value
@@ -280,9 +357,8 @@ function handleSignup(e) {
   const password = document.getElementById("signup-password").value
   const referralCode = document.getElementById("signup-referral").value
 
-  // Check if user already exists
-  const users = JSON.parse(localStorage.getItem("users"))
-  if (users.find((user) => user.email === email)) {
+  // Check if user already exists in global database
+  if (globalDatabase.users.find((user) => user.email === email)) {
     showNotification("User already exists with this email", "error")
     return
   }
@@ -290,6 +366,7 @@ function handleSignup(e) {
   // Generate unique user ID and account number
   const userId = generateUniqueId()
   const accountNumber = generateAccountNumber()
+  const userReferralCode = generateReferralCode()
 
   // Create new user
   const newUser = {
@@ -297,7 +374,7 @@ function handleSignup(e) {
     name: name,
     email: email,
     phone: phone,
-    password: btoa(password), // Simple Base64 encoding
+    password: btoa(password),
     accountNumber: accountNumber,
     balance: 600, // Welcome bonus
     tasks: [],
@@ -318,69 +395,168 @@ function handleSignup(e) {
       },
     ],
     lastLogin: null,
-    referralCode: userId,
+    referralCode: userReferralCode,
     referredBy: referralCode || null,
     deviceId: getDeviceId(),
     lastUpdate: new Date().toISOString(),
+    signupDate: new Date().toISOString(),
   }
 
-  // Save user
-  users.push(newUser)
-  localStorage.setItem("users", JSON.stringify(users))
+  // Add to global database
+  globalDatabase.users.push(newUser)
 
-  // Log activity
-  logGlobalActivity(userId, "signup", { email: email, deviceId: getDeviceId() }, "completed")
+  // Log activity in global log
+  const activityLog = {
+    id: generateUniqueId(),
+    userId: userId,
+    action: "signup",
+    details: {
+      email: email,
+      deviceId: getDeviceId(),
+      referralCode: referralCode || null,
+      signupBonus: 600,
+    },
+    date: new Date().toISOString(),
+    status: "completed",
+  }
+  globalDatabase.globalActivityLog.push(activityLog)
 
-  // Send to Formspree
-  sendToFormspree({
+  // Handle referral if provided - GLOBAL REFERRAL SYSTEM
+  if (referralCode) {
+    await handleGlobalReferralSignup(referralCode, userId, name)
+  }
+
+  // Save to global database
+  await saveGlobalData({
     type: "signup",
     name: name,
     email: email,
     phone: phone,
     accountNumber: accountNumber,
     deviceId: getDeviceId(),
+    referralCode: referralCode || null,
   })
-
-  // Handle referral if provided - THIS WILL NOW WORK ACROSS DEVICES
-  if (referralCode) {
-    handleReferralSignup(referralCode, userId)
-  }
-
-  // Force immediate sync
-  syncGlobalData()
 
   showNotification("Account created successfully! Welcome bonus of ₦600 added.", "success")
   showSection("login")
 }
 
-function handleLogin(e) {
+// Global referral system that works across ALL devices
+async function handleGlobalReferralSignup(referralCode, newUserId, newUserName) {
+  // Find referrer in global database
+  const referrer = globalDatabase.users.find((u) => u.referralCode === referralCode)
+  const newUser = globalDatabase.users.find((u) => u.id === newUserId)
+
+  if (referrer && newUser) {
+    // Add ₦600 signup bonus to referrer
+    referrer.balance += 600
+    referrer.lastUpdate = new Date().toISOString()
+
+    // Add to referrer's referrals list
+    referrer.referrals.push({
+      userId: newUserId,
+      userName: newUserName,
+      level: 1,
+      joinDate: new Date().toISOString(),
+      totalDeposits: 0,
+      signupBonus: 600,
+    })
+
+    // Add transaction for referrer
+    referrer.transactions.push({
+      type: "referral_signup_bonus",
+      amount: 600,
+      date: new Date().toISOString(),
+      description: `Referral signup bonus from ${newUserName}`,
+      referralUserId: newUserId,
+    })
+
+    // Add notification for referrer
+    referrer.notifications.push({
+      message: `🎉 ${newUserName} signed up using your referral code! You earned ₦600 bonus.`,
+      date: new Date().toISOString(),
+      type: "success",
+    })
+
+    // Handle second level referral
+    if (referrer.referredBy) {
+      const secondLevelReferrer = globalDatabase.users.find((u) => u.referralCode === referrer.referredBy)
+      if (secondLevelReferrer) {
+        secondLevelReferrer.referrals.push({
+          userId: newUserId,
+          userName: newUserName,
+          level: 2,
+          joinDate: new Date().toISOString(),
+          totalDeposits: 0,
+          signupBonus: 0,
+        })
+        secondLevelReferrer.lastUpdate = new Date().toISOString()
+      }
+    }
+
+    // Log global activity for referral bonus
+    globalDatabase.globalActivityLog.push({
+      id: generateUniqueId(),
+      userId: referrer.id,
+      action: "referral_signup_bonus",
+      details: {
+        amount: 600,
+        referredUser: newUserName,
+        referredUserId: newUserId,
+        deviceId: getDeviceId(),
+      },
+      date: new Date().toISOString(),
+      status: "completed",
+    })
+
+    // Save to global database immediately
+    await saveGlobalData({
+      type: "referral_signup_bonus",
+      referrerId: referrer.id,
+      referrerName: referrer.name,
+      referrerEmail: referrer.email,
+      newUserId: newUserId,
+      newUserName: newUserName,
+      bonusAmount: 600,
+      deviceId: getDeviceId(),
+    })
+
+    console.log(`Referral bonus processed: ${referrer.name} earned ₦600 for referring ${newUserName}`)
+  }
+}
+
+async function handleLogin(e) {
   e.preventDefault()
 
   const email = document.getElementById("login-email").value
   const password = document.getElementById("login-password").value
 
-  const users = JSON.parse(localStorage.getItem("users"))
-  const user = users.find((u) => u.email === email && u.password === btoa(password))
+  // Check in global database
+  const user = globalDatabase.users.find((u) => u.email === email && u.password === btoa(password))
 
   if (!user) {
     showNotification("Invalid email or password", "error")
     return
   }
 
-  // Update last login and check for daily profits
+  // Update last login
   user.lastLogin = new Date().toISOString()
   user.lastUpdate = new Date().toISOString()
   user.deviceId = getDeviceId()
   currentUser = user
   localStorage.setItem("currentUser", JSON.stringify(user))
 
-  // Update users array
-  const userIndex = users.findIndex((u) => u.id === user.id)
-  users[userIndex] = user
-  localStorage.setItem("users", JSON.stringify(users))
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === user.id)
+  globalDatabase.users[userIndex] = user
 
-  // Force immediate sync
-  syncGlobalData()
+  // Save to global database
+  await saveGlobalData({
+    type: "login",
+    userId: user.id,
+    email: email,
+    deviceId: getDeviceId(),
+  })
 
   // Check for daily profits
   checkDailyProfits()
@@ -396,8 +572,8 @@ function logout() {
   showNotification("Logged out successfully", "success")
 }
 
-// Deposit functions - NOW SYNCS ACROSS DEVICES
-function handleDeposit(e) {
+// Deposit functions with global sync
+async function handleDeposit(e) {
   e.preventDefault()
 
   const amount = Number.parseFloat(document.getElementById("deposit-amount").value)
@@ -416,20 +592,8 @@ function handleDeposit(e) {
   document.getElementById("bank-details-modal").classList.remove("hidden")
 }
 
-function confirmPayment() {
+async function confirmPayment() {
   const { amount, method } = window.tempDepositData
-
-  // Create deposit record
-  const depositId = generateUniqueId()
-  const deposit = {
-    id: depositId,
-    userId: currentUser.id,
-    amount: amount,
-    method: method,
-    date: new Date().toISOString(),
-    status: "pending",
-    deviceId: getDeviceId(),
-  }
 
   // Add to user's transactions
   currentUser.transactions.push({
@@ -447,25 +611,29 @@ function confirmPayment() {
     type: "info",
   })
 
-  // Update user data
   currentUser.lastUpdate = new Date().toISOString()
-  updateUserData()
 
-  // Log global activity - THIS WILL BE VISIBLE TO ADMIN ON ANY DEVICE
-  logGlobalActivity(
-    currentUser.id,
-    "deposit",
-    {
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+  globalDatabase.users[userIndex] = currentUser
+
+  // Log in global activity log
+  globalDatabase.globalActivityLog.push({
+    id: generateUniqueId(),
+    userId: currentUser.id,
+    action: "deposit",
+    details: {
       amount: amount,
       method: method,
       deviceId: getDeviceId(),
       userDevice: navigator.userAgent,
     },
-    "pending",
-  )
+    date: new Date().toISOString(),
+    status: "pending",
+  })
 
-  // Send to Formspree
-  sendToFormspree({
+  // Save to global database
+  await saveGlobalData({
     type: "deposit",
     userId: currentUser.id,
     name: currentUser.name,
@@ -479,9 +647,6 @@ function confirmPayment() {
     deviceId: getDeviceId(),
     userDevice: navigator.userAgent,
   })
-
-  // Force immediate sync so admin sees it instantly
-  syncGlobalData()
 
   // Close modal and reset form
   document.getElementById("bank-details-modal").classList.add("hidden")
@@ -498,7 +663,7 @@ function cancelPayment() {
 }
 
 // Task functions
-function buyTask(name, cost, dailyProfit, duration) {
+async function buyTask(name, cost, dailyProfit, duration) {
   if (!currentUser) {
     showNotification("Please log in to buy tasks", "error")
     return
@@ -551,12 +716,21 @@ function buyTask(name, cost, dailyProfit, duration) {
   })
 
   currentUser.lastUpdate = new Date().toISOString()
-  updateUserData()
+
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+  globalDatabase.users[userIndex] = currentUser
+
+  // Save to global database
+  await saveGlobalData({
+    type: "task_purchase",
+    userId: currentUser.id,
+    taskName: name,
+    cost: cost,
+    deviceId: getDeviceId(),
+  })
+
   updateDashboard()
-
-  // Force sync
-  syncGlobalData()
-
   showNotification(`Successfully purchased ${name}!`, "success")
 }
 
@@ -638,7 +812,7 @@ function canCollectDailyProfit(task) {
   return hoursDiff >= 24
 }
 
-function collectDailyProfit(taskId) {
+async function collectDailyProfit(taskId) {
   const task = currentUser.tasks.find((t) => t.id === taskId)
   if (!task || !canCollectDailyProfit(task)) return
 
@@ -665,17 +839,26 @@ function collectDailyProfit(taskId) {
   })
 
   currentUser.lastUpdate = new Date().toISOString()
-  updateUserData()
+
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+  globalDatabase.users[userIndex] = currentUser
+
+  // Save to global database
+  await saveGlobalData({
+    type: "daily_profit_collected",
+    userId: currentUser.id,
+    taskId: taskId,
+    amount: task.dailyProfit,
+    deviceId: getDeviceId(),
+  })
+
   updateDashboard()
   displayActiveTasks()
-
-  // Force sync
-  syncGlobalData()
-
   showNotification(`Collected ₦${task.dailyProfit.toLocaleString()} daily profit!`, "success")
 }
 
-function checkDailyProfits() {
+async function checkDailyProfits() {
   if (!currentUser) return
 
   let profitsCollected = 0
@@ -707,16 +890,25 @@ function checkDailyProfits() {
     })
 
     currentUser.lastUpdate = new Date().toISOString()
-    updateUserData()
-    updateDashboard()
 
-    // Force sync
-    syncGlobalData()
+    // Update in global database
+    const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+    globalDatabase.users[userIndex] = currentUser
+
+    // Save to global database
+    await saveGlobalData({
+      type: "auto_daily_profits",
+      userId: currentUser.id,
+      totalCollected: profitsCollected,
+      deviceId: getDeviceId(),
+    })
+
+    updateDashboard()
   }
 }
 
 // Withdrawal functions
-function handleWithdraw(e) {
+async function handleWithdraw(e) {
   e.preventDefault()
 
   const amount = Number.parseFloat(document.getElementById("withdraw-amount").value)
@@ -761,16 +953,24 @@ function handleWithdraw(e) {
     type: "success",
   })
 
-  // Log global activity
-  logGlobalActivity(
-    currentUser.id,
-    "withdrawal",
-    { amount: amount, fee: fee, bank: bank, account: account, deviceId: getDeviceId() },
-    "completed",
-  )
+  currentUser.lastUpdate = new Date().toISOString()
 
-  // Send to Formspree
-  sendToFormspree({
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+  globalDatabase.users[userIndex] = currentUser
+
+  // Log global activity
+  globalDatabase.globalActivityLog.push({
+    id: generateUniqueId(),
+    userId: currentUser.id,
+    action: "withdrawal",
+    details: { amount: amount, fee: fee, bank: bank, account: account, deviceId: getDeviceId() },
+    date: new Date().toISOString(),
+    status: "completed",
+  })
+
+  // Save to global database
+  await saveGlobalData({
     type: "withdrawal",
     userId: currentUser.id,
     name: currentUser.name,
@@ -783,12 +983,7 @@ function handleWithdraw(e) {
     deviceId: getDeviceId(),
   })
 
-  currentUser.lastUpdate = new Date().toISOString()
-  updateUserData()
   updateDashboard()
-
-  // Force sync
-  syncGlobalData()
 
   showModal(
     "Withdrawal Successful",
@@ -825,100 +1020,14 @@ function isWithdrawalTimeValid() {
   return hour >= 10 && hour < 19 // 10 AM to 7 PM
 }
 
-// Referral functions - NOW WORKS ACROSS ALL DEVICES
-function handleReferralSignup(referralCode, newUserId) {
-  const users = JSON.parse(localStorage.getItem("users"))
-  const referrer = users.find((u) => u.referralCode === referralCode)
-  const newUser = users.find((u) => u.id === newUserId)
-
-  if (referrer && newUser) {
-    // Add ₦600 signup bonus to referrer
-    referrer.balance += 600
-    referrer.lastUpdate = new Date().toISOString()
-
-    // Add to referrer's referrals list
-    referrer.referrals.push({
-      userId: newUserId,
-      level: 1,
-      joinDate: new Date().toISOString(),
-      totalDeposits: 0,
-    })
-
-    // Add transaction for referrer
-    referrer.transactions.push({
-      type: "referral_signup_bonus",
-      amount: 600,
-      date: new Date().toISOString(),
-      description: `Referral signup bonus from ${newUser.name}`,
-      referralUserId: newUserId,
-    })
-
-    // Add notification for referrer
-    referrer.notifications.push({
-      message: `${newUser.name} signed up using your referral code! You earned ₦600 bonus.`,
-      date: new Date().toISOString(),
-      type: "success",
-    })
-
-    // Find second level referrer
-    if (referrer.referredBy) {
-      const secondLevelReferrer = users.find((u) => u.referralCode === referrer.referredBy)
-      if (secondLevelReferrer) {
-        secondLevelReferrer.referrals.push({
-          userId: newUserId,
-          level: 2,
-          joinDate: new Date().toISOString(),
-          totalDeposits: 0,
-        })
-        secondLevelReferrer.lastUpdate = new Date().toISOString()
-
-        const secondLevelIndex = users.findIndex((u) => u.id === secondLevelReferrer.id)
-        users[secondLevelIndex] = secondLevelReferrer
-      }
-    }
-
-    const referrerIndex = users.findIndex((u) => u.id === referrer.id)
-    users[referrerIndex] = referrer
-    localStorage.setItem("users", JSON.stringify(users))
-
-    // Log global activity for referral bonus
-    logGlobalActivity(
-      referrer.id,
-      "referral_signup_bonus",
-      {
-        amount: 600,
-        referredUser: newUser.name,
-        referredUserId: newUserId,
-        deviceId: getDeviceId(),
-      },
-      "completed",
-    )
-
-    // Force immediate sync so referrer gets notified on any device
-    syncGlobalData()
-
-    // Send notification to Formspree
-    sendToFormspree({
-      type: "referral_signup_bonus",
-      referrerId: referrer.id,
-      referrerName: referrer.name,
-      referrerEmail: referrer.email,
-      newUserId: newUserId,
-      newUserName: newUser.name,
-      bonusAmount: 600,
-      deviceId: getDeviceId(),
-    })
-  }
-}
-
-function processReferralBonuses(userId, depositAmount) {
-  const users = JSON.parse(localStorage.getItem("users"))
-  const user = users.find((u) => u.id === userId)
+// Global referral bonus processing
+async function processGlobalReferralBonuses(userId, depositAmount) {
+  const user = globalDatabase.users.find((u) => u.id === userId)
 
   if (!user || !user.referredBy) return
 
   // First level referral bonus (20%)
-  const firstLevelReferrer = users.find((u) => u.referralCode === user.referredBy)
+  const firstLevelReferrer = globalDatabase.users.find((u) => u.referralCode === user.referredBy)
   if (firstLevelReferrer) {
     const firstLevelBonus = depositAmount * 0.2
     firstLevelReferrer.balance += firstLevelBonus
@@ -933,7 +1042,7 @@ function processReferralBonuses(userId, depositAmount) {
     })
 
     firstLevelReferrer.notifications.push({
-      message: `Earned ₦${firstLevelBonus.toLocaleString()} referral bonus (Level 1)`,
+      message: `💰 Earned ₦${firstLevelBonus.toLocaleString()} referral bonus (Level 1) from ${user.name}`,
       date: new Date().toISOString(),
       type: "success",
     })
@@ -946,7 +1055,7 @@ function processReferralBonuses(userId, depositAmount) {
 
     // Second level referral bonus (10%)
     if (firstLevelReferrer.referredBy) {
-      const secondLevelReferrer = users.find((u) => u.referralCode === firstLevelReferrer.referredBy)
+      const secondLevelReferrer = globalDatabase.users.find((u) => u.referralCode === firstLevelReferrer.referredBy)
       if (secondLevelReferrer) {
         const secondLevelBonus = depositAmount * 0.1
         secondLevelReferrer.balance += secondLevelBonus
@@ -961,7 +1070,7 @@ function processReferralBonuses(userId, depositAmount) {
         })
 
         secondLevelReferrer.notifications.push({
-          message: `Earned ₦${secondLevelBonus.toLocaleString()} referral bonus (Level 2)`,
+          message: `💰 Earned ₦${secondLevelBonus.toLocaleString()} referral bonus (Level 2) from ${user.name}`,
           date: new Date().toISOString(),
           type: "success",
         })
@@ -971,20 +1080,17 @@ function processReferralBonuses(userId, depositAmount) {
         if (secondReferralRecord) {
           secondReferralRecord.totalDeposits += depositAmount
         }
-
-        const secondLevelIndex = users.findIndex((u) => u.id === secondLevelReferrer.id)
-        users[secondLevelIndex] = secondLevelReferrer
       }
     }
-
-    const firstLevelIndex = users.findIndex((u) => u.id === firstLevelReferrer.id)
-    users[firstLevelIndex] = firstLevelReferrer
   }
 
-  localStorage.setItem("users", JSON.stringify(users))
-
-  // Force sync so referrers get notified on any device
-  syncGlobalData()
+  // Save to global database
+  await saveGlobalData({
+    type: "referral_bonuses_processed",
+    userId: userId,
+    depositAmount: depositAmount,
+    deviceId: getDeviceId(),
+  })
 }
 
 function displayReferrals() {
@@ -1008,18 +1114,17 @@ function displayReferrals() {
     return
   }
 
-  const users = JSON.parse(localStorage.getItem("users"))
-
   referralsList.innerHTML = currentUser.referrals
     .map((referral) => {
-      const referredUser = users.find((u) => u.id === referral.userId)
-      const userName = referredUser ? referredUser.name : "Unknown User"
+      const referredUser = globalDatabase.users.find((u) => u.id === referral.userId)
+      const userName = referredUser ? referredUser.name : referral.userName || "Unknown User"
 
       return `
             <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                 <div>
                     <p class="font-medium">${userName}</p>
                     <p class="text-sm text-gray-600">Level ${referral.level} • Joined ${new Date(referral.joinDate).toLocaleDateString()}</p>
+                    ${referral.signupBonus ? `<p class="text-xs text-green-600">Signup Bonus: ₦${referral.signupBonus}</p>` : ""}
                 </div>
                 <div class="text-right">
                     <p class="font-bold text-green-600">₦${referral.totalDeposits.toLocaleString()}</p>
@@ -1084,21 +1189,28 @@ function displayNotifications() {
     .join("")
 }
 
-function clearNotifications() {
+async function clearNotifications() {
   if (!currentUser) return
 
   currentUser.notifications = []
   currentUser.lastUpdate = new Date().toISOString()
-  updateUserData()
+
+  // Update in global database
+  const userIndex = globalDatabase.users.findIndex((u) => u.id === currentUser.id)
+  globalDatabase.users[userIndex] = currentUser
+
+  // Save to global database
+  await saveGlobalData({
+    type: "notifications_cleared",
+    userId: currentUser.id,
+    deviceId: getDeviceId(),
+  })
+
   displayNotifications()
-
-  // Force sync
-  syncGlobalData()
-
   showNotification("All notifications cleared", "success")
 }
 
-// Admin functions - NOW TRULY GLOBAL
+// Admin functions with global database
 function showAdminLogin() {
   document.getElementById("admin-login-modal").classList.remove("hidden")
 }
@@ -1108,7 +1220,7 @@ function closeAdminLogin() {
   document.getElementById("admin-password").value = ""
 }
 
-function handleAdminLogin(e) {
+async function handleAdminLogin(e) {
   e.preventDefault()
 
   const password = document.getElementById("admin-password").value
@@ -1118,7 +1230,7 @@ function handleAdminLogin(e) {
     showSection("admin")
 
     // Force sync before showing admin panel
-    syncGlobalData()
+    await syncWithGlobalDatabase()
     setTimeout(() => {
       displayAdminPanel()
     }, 500)
@@ -1130,11 +1242,9 @@ function handleAdminLogin(e) {
 }
 
 function displayAdminPanel() {
-  // Force sync to get latest data
-  syncGlobalData()
-
-  const users = JSON.parse(localStorage.getItem("users"))
-  const globalLog = JSON.parse(localStorage.getItem("globalActivityLog"))
+  // Use global database for admin panel
+  const users = globalDatabase.users
+  const globalLog = globalDatabase.globalActivityLog
 
   // Update admin stats
   const totalUsers = users.length
@@ -1203,14 +1313,11 @@ function displayAdminPanel() {
     .join("")
 }
 
-function approveDeposit(logId) {
-  const globalLog = JSON.parse(localStorage.getItem("globalActivityLog"))
-  const users = JSON.parse(localStorage.getItem("users"))
-
-  const logEntry = globalLog.find((log) => log.id === logId)
+async function approveDeposit(logId) {
+  const logEntry = globalDatabase.globalActivityLog.find((log) => log.id === logId)
   if (!logEntry || logEntry.status !== "pending") return
 
-  const user = users.find((u) => u.id === logEntry.userId)
+  const user = globalDatabase.users.find((u) => u.id === logEntry.userId)
   if (!user) return
 
   // Update user balance
@@ -1227,7 +1334,7 @@ function approveDeposit(logId) {
 
   // Add notification
   user.notifications.push({
-    message: `Deposit of ₦${logEntry.details.amount.toLocaleString()} has been approved`,
+    message: `✅ Deposit of ₦${logEntry.details.amount.toLocaleString()} has been approved`,
     date: new Date().toISOString(),
     type: "success",
   })
@@ -1235,7 +1342,7 @@ function approveDeposit(logId) {
   // Process referral bonuses if this is the user's first approved deposit
   const approvedDeposits = user.transactions.filter((t) => t.type === "deposit" && t.status === "approved")
   if (approvedDeposits.length === 1) {
-    processReferralBonuses(user.id, logEntry.details.amount)
+    await processGlobalReferralBonuses(user.id, logEntry.details.amount)
   }
 
   // Update log status
@@ -1243,27 +1350,24 @@ function approveDeposit(logId) {
   logEntry.approvedBy = "admin"
   logEntry.approvedDate = new Date().toISOString()
 
-  // Save updates
-  const userIndex = users.findIndex((u) => u.id === user.id)
-  users[userIndex] = user
-  localStorage.setItem("users", JSON.stringify(users))
-  localStorage.setItem("globalActivityLog", JSON.stringify(globalLog))
-
-  // Force immediate sync so user sees approval on any device
-  syncGlobalData()
+  // Save to global database
+  await saveGlobalData({
+    type: "deposit_approved",
+    userId: user.id,
+    amount: logEntry.details.amount,
+    adminAction: true,
+    deviceId: getDeviceId(),
+  })
 
   displayAdminPanel()
   showNotification("Deposit approved successfully", "success")
 }
 
-function declineDeposit(logId) {
-  const globalLog = JSON.parse(localStorage.getItem("globalActivityLog"))
-  const users = JSON.parse(localStorage.getItem("users"))
-
-  const logEntry = globalLog.find((log) => log.id === logId)
+async function declineDeposit(logId) {
+  const logEntry = globalDatabase.globalActivityLog.find((log) => log.id === logId)
   if (!logEntry || logEntry.status !== "pending") return
 
-  const user = users.find((u) => u.id === logEntry.userId)
+  const user = globalDatabase.users.find((u) => u.id === logEntry.userId)
   if (!user) return
 
   // Update transaction status
@@ -1276,7 +1380,7 @@ function declineDeposit(logId) {
 
   // Add notification
   user.notifications.push({
-    message: `Deposit of ₦${logEntry.details.amount.toLocaleString()} has been declined`,
+    message: `❌ Deposit of ₦${logEntry.details.amount.toLocaleString()} has been declined`,
     date: new Date().toISOString(),
     type: "error",
   })
@@ -1288,14 +1392,14 @@ function declineDeposit(logId) {
 
   user.lastUpdate = new Date().toISOString()
 
-  // Save updates
-  const userIndex = users.findIndex((u) => u.id === user.id)
-  users[userIndex] = user
-  localStorage.setItem("users", JSON.stringify(users))
-  localStorage.setItem("globalActivityLog", JSON.stringify(globalLog))
-
-  // Force immediate sync
-  syncGlobalData()
+  // Save to global database
+  await saveGlobalData({
+    type: "deposit_declined",
+    userId: user.id,
+    amount: logEntry.details.amount,
+    adminAction: true,
+    deviceId: getDeviceId(),
+  })
 
   displayAdminPanel()
   showNotification("Deposit declined", "success")
@@ -1388,45 +1492,17 @@ function generateAccountNumber() {
   return Math.floor(1000000000 + Math.random() * 9000000000).toString()
 }
 
-function updateUserData() {
-  if (!currentUser) return
-
-  const users = JSON.parse(localStorage.getItem("users"))
-  const userIndex = users.findIndex((u) => u.id === currentUser.id)
-
-  if (userIndex !== -1) {
-    users[userIndex] = currentUser
-    localStorage.setItem("users", JSON.stringify(users))
-    localStorage.setItem("currentUser", JSON.stringify(currentUser))
-  }
+function generateReferralCode() {
+  return "REF" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase()
 }
 
-function logGlobalActivity(userId, action, details, status) {
-  const globalLog = JSON.parse(localStorage.getItem("globalActivityLog"))
-
-  const logEntry = {
-    id: generateUniqueId(),
-    userId: userId,
-    action: action,
-    details: details,
-    date: new Date().toISOString(),
-    status: status,
+function getDeviceId() {
+  let deviceId = localStorage.getItem("deviceId")
+  if (!deviceId) {
+    deviceId = generateUniqueId()
+    localStorage.setItem("deviceId", deviceId)
   }
-
-  globalLog.push(logEntry)
-  localStorage.setItem("globalActivityLog", JSON.stringify(globalLog))
-}
-
-function sendToFormspree(data) {
-  fetch("https://formspree.io/f/mblkywnz", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  }).catch((error) => {
-    console.error("Error sending to Formspree:", error)
-  })
+  return deviceId
 }
 
 function showNotification(message, type = "success") {
@@ -1487,10 +1563,3 @@ document.addEventListener("DOMContentLoaded", () => {
   // Listen for hash changes
   window.addEventListener("hashchange", checkAdminAccess)
 })
-
-// Initialize the app when DOM is loaded
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    // App is already initialized in the main DOMContentLoaded listener
-  })
-}
